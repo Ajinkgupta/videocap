@@ -1,0 +1,17 @@
+FROM node:18-bullseye
+
+# Install FFMPEG
+RUN apt-get update && apt-get install -y ffmpeg
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
