@@ -158,11 +158,11 @@ export default function Home() {
 
         <div style={{ marginTop: 'auto', padding: '1rem', background: '#f1f5f9', borderRadius: '8px' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--secondary)' }}>
-            OpenAI API Key
+            Gemini API Key
           </label>
           <input 
             type="password" 
-            placeholder="sk-..." 
+            placeholder="AIza..." 
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             style={{ 
@@ -194,8 +194,10 @@ export default function Home() {
           {!videoUrl ? (
             <div className="upload-zone">
               <div style={{ fontSize: '4rem', marginBottom: '1.5rem', color: '#cbd5e1' }}>☁️</div>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>Upload your video</h2>
-              <p style={{ color: 'var(--secondary)', marginBottom: '2rem' }}>MP4 files supported. Max 50MB.</p>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>Welcome to Videocap</h2>
+              <p style={{ color: 'var(--secondary)', marginBottom: '2rem', textAlign: 'center', maxWidth: '400px' }}>
+                Enter your Gemini API Key to caption your own videos, or try the demo to see it in action!
+              </p>
               
               <input 
                 type="file" 

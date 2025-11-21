@@ -1,5 +1,6 @@
 import fs from 'fs';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleAIFileManager } from "@google/generative-ai/server";
 import ffmpeg from 'fluent-ffmpeg';
 
 export interface Caption {
@@ -18,11 +19,11 @@ function getVideoDuration(filePath: string): Promise<number> {
 }
 
 export async function transcribeVideo(filePath: string, apiKey?: string): Promise<Caption[]> {
-  const key = apiKey || process.env.OPENAI_API_KEY;
+  const key = apiKey || process.env.GEMINI_API_KEY;
 
   // Check if API key is present
   if (!key) {
-    console.warn("Missing OPENAI_API_KEY, returning mock captions.");
+    console.warn("Missing GEMINI_API_KEY, returning mock captions.");
     
     try {
       const duration = await getVideoDuration(filePath);
@@ -32,7 +33,7 @@ export async function transcribeVideo(filePath: string, apiKey?: string): Promis
         "This is a dummy caption.",
         "Generated because no API key was provided.",
         "The video is playing smoothly.",
-        "Add your OpenAI Key to see real magic.",
+        "Add your Gemini Key to see real magic.",
         "Videocap makes captioning easy.",
         "Just a placeholder text here.",
         "Look at these beautiful subtitles.",
@@ -63,7 +64,7 @@ export async function transcribeVideo(filePath: string, apiKey?: string): Promis
     } catch (e) {
       console.error("Failed to get video duration for mock captions", e);
       return [
-        { start: 0, end: 2, text: "Mock Caption: OpenAI API Key missing." },
+        { start: 0, end: 2, text: "Mock Caption: Gemini API Key missing." },
         { start: 2, end: 5, text: "Please enter your API Key in the UI" },
         { start: 5, end: 8, text: "This is a fallback demonstration." }
       ];
@@ -71,27 +72,90 @@ export async function transcribeVideo(filePath: string, apiKey?: string): Promis
   }
 
   try {
-    const openai = new OpenAI({ apiKey: key });
+    console.log(`Transcribing file with Gemini: ${filePath}`);
+    
+    const fileManager = new GoogleAIFileManager(key);
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    
-    console.log(`Transcribing file: ${filePath}`);
-    
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(filePath),
-      model: "whisper-1",
-      response_format: "verbose_json",
-      timestamp_granularities: ["segment"]
+    const uploadResult = await fileManager.uploadFile(filePath, {
+      mimeType: "video/mp4", // Assuming MP4, could detect dynamically
+      displayName: "Video for transcription",
     });
 
-    const segments = transcription.segments || [];
+    console.log(`Uploaded file: ${uploadResult.file.uri}`);
+
+    // Wait for file to be active
+    let file = await fileManager.getFile(uploadResult.file.name);
+    while (file.state === "PROCESSING") {
+        console.log("Processing file...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        file = await fileManager.getFile(uploadResult.file.name);
+    }
+
+    if (file.state === "FAILED") {
+      throw new Error("Video processing failed.");
+    }
+
+    console.log("File processed. Generating content...");
+
+    const result = await model.generateContent([
+      {
+        fileData: {
+          mimeType: uploadResult.file.mimeType,
+          fileUri: uploadResult.file.uri
+        }
+      },
+      { text: `Transcribe the audio in this video into Hinglish (Hindi + English mixed). 
+      
+      Return ONLY a valid JSON array of objects. 
+      Each object MUST have exactly these three fields:
+      - "start": number (start time in seconds)
+      - "end": number (end time in seconds)
+      - "text": string (the transcribed text)
+
+      Example format:
+      [
+        { "start": 0, "end": 2.5, "text": "Hello doston, kaise ho aap?" },
+        { "start": 2.5, "end": 5, "text": "Aaj hum coding karenge." }
+      ]
+
+      Do not wrap the result in markdown code blocks. Do not include any other text. Return just the JSON array.` }
+    ]);
+
+    const responseText = result.response.text();
+    console.log("Gemini Response:", responseText.substring(0, 200) + "...");
+
+    // Clean up response text if it contains markdown
+    let cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // Handle case where model returns an object wrapping the array
+    if (cleanedText.startsWith('{') && cleanedText.endsWith('}')) {
+       try {
+         const parsed = JSON.parse(cleanedText);
+         // If it's wrapped in a key like "json_array" or "captions", extract it
+         const keys = Object.keys(parsed);
+         if (keys.length === 1 && Array.isArray(parsed[keys[0]])) {
+           cleanedText = JSON.stringify(parsed[keys[0]]);
+         }
+       } catch (e) {
+         // Ignore parse error here, will fail below if invalid
+       }
+    }
+    
+    const segments = JSON.parse(cleanedText);
+
+    // Cleanup file
+    await fileManager.deleteFile(uploadResult.file.name);
 
     return segments.map((segment: any) => ({
       start: segment.start,
       end: segment.end,
       text: segment.text
     }));
+
   } catch (error) {
-    console.error("OpenAI Whisper API Error:", error);
+    console.error("Gemini API Error:", error);
     throw error;
   }
 }
