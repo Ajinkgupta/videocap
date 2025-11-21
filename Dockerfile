@@ -1,12 +1,19 @@
-FROM node:18-bullseye
+FROM node:20-bullseye
 
-# Install FFMPEG
-RUN apt-get update && apt-get install -y ffmpeg
+# Install FFMPEG and Chromium dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for Remotion/Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 
