@@ -1,6 +1,5 @@
 node_modules
 .next
-out
-public/uploads
+out 
 .env
 .env.local
