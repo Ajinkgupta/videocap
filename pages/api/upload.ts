@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const fileName = path.basename(uploadedFile.filepath);
-    const publicUrl = `/uploads/${fileName}`;
+    const publicUrl = `/api/uploads/${fileName}`;
 
     return res.status(200).json({ url: publicUrl, fields });
   });
